@@ -25,6 +25,7 @@ class Settings:
         "llama-3.3-70b-versatile",
     )
     tavily_max_results: int = 2
+    multi_agent_recursion_limit: int = 12
 
     @property
     def chat_api_url(self) -> str:

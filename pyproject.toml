@@ -1,7 +1,7 @@
 [project]
 name = "multi-ai-agent"
 version = "0.1.0"
-description = "Multi AI Agent chat app with Groq, Tavily, FastAPI, and Streamlit"
+description = "Multi-agent supervisor team (researcher, analyst, writer) with Groq, Tavily, FastAPI, and Streamlit"
 readme = "README.md"
 requires-python = ">=3.10,<3.13"
 dependencies = [

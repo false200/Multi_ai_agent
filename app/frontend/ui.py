@@ -11,12 +11,11 @@ logger = get_logger(__name__)
 
 
 def _render_sidebar() -> None:
-    st.sidebar.header("About")
-    st.sidebar.markdown(
-        "Configure a Groq-powered agent, optionally enable Tavily web search, "
-        "and ask a question."
+    st.sidebar.header("How it works")
+    st.sidebar.write(
+        "A supervisor routes each request across researcher, analyst, "
+        "and writer agents before returning a single response."
     )
-    st.sidebar.caption(f"Backend: `{settings.chat_api_url}`")
 
 
 def _build_payload(
@@ -33,7 +32,7 @@ def _build_payload(
     }
 
 
-def _ask_agent(payload: dict) -> str:
+def _ask_agents(payload: dict) -> tuple[str, list[str]]:
     try:
         logger.info("Sending request to backend")
         response = requests.post(
@@ -59,26 +58,31 @@ def _ask_agent(payload: dict) -> str:
     if not agent_response:
         raise CustomException("Backend returned an empty response")
 
+    agent_trace = data.get("agent_trace") or []
     logger.info("Successfully received response from backend")
-    return agent_response
+    return agent_response, agent_trace
 
 
 def main() -> None:
     st.set_page_config(page_title="Multi AI Agent", layout="centered")
     st.title("Multi AI Agent")
-    st.caption("Groq LLMs with optional Tavily web search")
+    st.caption("Multi-agent orchestration on Groq")
     _render_sidebar()
 
-    system_prompt = st.text_area("Define your AI agent", height=80)
-    selected_model = st.selectbox("Select AI model", settings.allowed_model_names)
-    allow_web_search = st.checkbox("Allow web search")
-    user_query = st.text_area("Enter your query", height=150)
+    system_prompt = st.text_area(
+        "Writer instructions",
+        height=80,
+        placeholder="Optional style or format guidance for the final answer",
+    )
+    selected_model = st.selectbox("Model", settings.allowed_model_names)
+    allow_web_search = st.checkbox("Enable web search for the researcher")
+    user_query = st.text_area("Query", height=150)
 
-    if not st.button("Ask Agent", type="primary"):
+    if not st.button("Submit", type="primary"):
         return
 
     if not user_query.strip():
-        st.warning("Please enter a query before asking the agent.")
+        st.warning("Enter a query before submitting.")
         return
 
     payload = _build_payload(
@@ -88,10 +92,13 @@ def main() -> None:
         user_query=user_query.strip(),
     )
 
-    with st.spinner("Thinking..."):
+    with st.spinner("Processing"):
         try:
-            agent_response = _ask_agent(payload)
-            st.subheader("Agent Response")
+            agent_response, agent_trace = _ask_agents(payload)
+            if agent_trace:
+                st.subheader("Execution path")
+                st.code(" > ".join(agent_trace))
+            st.subheader("Response")
             st.markdown(agent_response)
         except CustomException as exc:
             st.error(str(exc))

@@ -1,13 +1,25 @@
 # Multi AI Agent
 
-A small full-stack demo that runs a configurable LLM agent behind a Streamlit UI and a FastAPI service. Models are served through Groq; optional live web search is provided by Tavily via a LangGraph ReAct agent.
+A full-stack demo of a **real multi-agent system**: a supervisor routes work across specialized agents (researcher, analyst, writer) behind a Streamlit UI and FastAPI service. Models run on Groq; the researcher can optionally use Tavily web search via LangGraph.
+
+## Agents
+
+| Agent | Role |
+| --- | --- |
+| **Supervisor** | Decides which specialist acts next, or finishes |
+| **Researcher** | Gathers facts (optional Tavily search) |
+| **Analyst** | Structures insights and spots gaps |
+| **Writer** | Produces the final user-facing answer |
+
+Typical path: `supervisor → researcher → supervisor → analyst → supervisor → writer → FINISH`
 
 ## Features
 
-- Choose a Groq model and set a custom system prompt
-- Optional Tavily web search during agent runs
-- FastAPI chat API with OpenAPI docs at `/docs`
-- Streamlit frontend for interactive use
+- Supervisor-orchestrated multi-agent team (not a single chatbot)
+- Choose a Groq model and optional writer instructions
+- Optional Tavily web search for the researcher
+- API returns the final answer plus an `agent_trace`
+- Streamlit UI shows the agent path
 - Docker image and Jenkins pipeline for ECR / ECS deployment
 
 ## Stack
@@ -16,9 +28,10 @@ A small full-stack demo that runs a configurable LLM agent behind a Streamlit UI
 | --- | --- |
 | UI | Streamlit |
 | API | FastAPI, Uvicorn |
-| Agent | LangChain, LangGraph |
+| Orchestration | LangGraph supervisor graph |
+| Agents | LangChain ReAct specialists |
 | Models | Groq (`llama3-70b-8192`, `llama-3.3-70b-versatile`) |
-| Search | Tavily |
+| Search | Tavily (researcher only) |
 | Packaging | uv |
 | Deploy | Docker, Jenkins, SonarQube, AWS ECR / ECS Fargate |
 
@@ -31,9 +44,14 @@ Streamlit (port 8501)
 FastAPI  POST /chat  (port 9999)
         │
         ▼
-LangGraph ReAct agent ──► Groq LLM
-        │
-        └── (optional) Tavily search
+   Supervisor ──► Researcher ──► (optional) Tavily
+        │              ▲
+        ├──► Analyst ──┤
+        │              │
+        └──► Writer ───┘
+               │
+               ▼
+         Final answer + agent_trace
 ```
 
 ## Project layout
@@ -43,7 +61,7 @@ app/
   main.py              # Starts API and UI
   backend/api.py       # FastAPI routes
   frontend/ui.py       # Streamlit app
-  core/ai_agent.py     # Agent invocation
+  core/ai_agent.py     # Multi-agent supervisor graph
   config/settings.py   # Env-based settings
   common/              # Logging and errors
 Dockerfile
@@ -63,7 +81,7 @@ pyproject.toml
 
 ```bash
 git clone <your-repo-url>
-cd MULTI-AI-AGENT-PROJECTS-main
+cd Multi_ai_agent
 
 uv sync
 ```
@@ -105,8 +123,8 @@ uv run python app/main.py
 ```json
 {
   "model_name": "llama-3.3-70b-versatile",
-  "system_prompt": "You are a helpful assistant.",
-  "messages": ["What is LangGraph?"],
+  "system_prompt": "Be concise and use bullet points.",
+  "messages": ["What is LangGraph multi-agent orchestration?"],
   "allow_search": false
 }
 ```
@@ -115,7 +133,16 @@ Response:
 
 ```json
 {
-  "response": "..."
+  "response": "...",
+  "agent_trace": [
+    "supervisor:researcher",
+    "researcher",
+    "supervisor:analyst",
+    "analyst",
+    "supervisor:writer",
+    "writer",
+    "supervisor:FINISH"
+  ]
 }
 ```
 

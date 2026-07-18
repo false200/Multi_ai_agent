@@ -4,6 +4,7 @@ import subprocess
 import sys
 import threading
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -12,7 +13,11 @@ from app.common.logger import get_logger
 from app.config.settings import settings
 
 logger = get_logger(__name__)
-load_dotenv()
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+UI_PATH = PROJECT_ROOT / "app" / "frontend" / "ui.py"
+
+load_dotenv(PROJECT_ROOT / ".env")
 
 
 def run_backend() -> None:
@@ -34,6 +39,7 @@ def run_backend() -> None:
                 str(settings.backend_port),
             ],
             check=True,
+            cwd=PROJECT_ROOT,
         )
     except Exception as exc:
         logger.error("Backend service failed")
@@ -49,11 +55,12 @@ def run_frontend() -> None:
                 "-m",
                 "streamlit",
                 "run",
-                "app/frontend/ui.py",
+                str(UI_PATH),
                 "--server.headless",
                 "true",
             ],
             check=True,
+            cwd=PROJECT_ROOT,
         )
     except Exception as exc:
         logger.error("Frontend service failed")

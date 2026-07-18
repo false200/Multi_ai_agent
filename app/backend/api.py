@@ -14,20 +14,33 @@ logger = get_logger(__name__)
 
 app = FastAPI(
     title="Multi AI Agent",
-    description="Chat API powered by Groq models with optional Tavily web search",
-    version="0.1.0",
+    description=(
+        "Multi-agent chat API: a supervisor routes work across "
+        "researcher, analyst, and writer agents (Groq + optional Tavily)."
+    ),
+    version="0.2.0",
 )
 
 
 class ChatRequest(BaseModel):
     model_name: str = Field(..., description="Groq model identifier")
-    system_prompt: str = Field(default="", description="Agent system instructions")
+    system_prompt: str = Field(
+        default="",
+        description="Extra instructions applied by the writer agent",
+    )
     messages: List[str] = Field(..., min_length=1, description="User messages")
-    allow_search: bool = Field(default=False, description="Enable Tavily web search")
+    allow_search: bool = Field(
+        default=False,
+        description="Enable Tavily web search for the researcher agent",
+    )
 
 
 class ChatResponse(BaseModel):
     response: str
+    agent_trace: List[str] = Field(
+        default_factory=list,
+        description="Ordered list of supervisor decisions and specialist agents",
+    )
 
 
 @app.get("/")
@@ -39,6 +52,7 @@ def root() -> dict[str, object]:
         "health": "/health",
         "chat": "POST /chat",
         "ui": "http://127.0.0.1:8501",
+        "agents": ["supervisor", "researcher", "analyst", "writer"],
         "allowed_models": list(settings.allowed_model_names),
     }
 
@@ -62,14 +76,18 @@ def chat_endpoint(request: ChatRequest) -> ChatResponse:
         )
 
     try:
-        response_text = get_response_from_ai_agents(
+        response_text, agent_trace = get_response_from_ai_agents(
             request.model_name,
             request.messages,
             request.allow_search,
             request.system_prompt,
         )
-        logger.info("Successfully generated response with model=%s", request.model_name)
-        return ChatResponse(response=response_text)
+        logger.info(
+            "Successfully generated multi-agent response model=%s trace=%s",
+            request.model_name,
+            agent_trace,
+        )
+        return ChatResponse(response=response_text, agent_trace=agent_trace)
     except CustomException as exc:
         logger.error("Agent error: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
